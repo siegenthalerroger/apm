@@ -1796,8 +1796,8 @@ class TestClaudeNativeCommandFrontmatter:
 
         assert deployed == {"description": "d"}
         assert _messages(diag, "warning") == [
-            "Claude command p: frontmatter keys not supported for claude commands and were "
-            "dropped: author, metadata, name, paths. Supported keys: agent, allowed-tools, "
+            "Claude command p: frontmatter keys dropped because Claude Code does not act on "
+            "them in command files: author, metadata, name, paths. Supported keys: agent, allowed-tools, "
             "argument-hint, arguments, background, context, description, "
             "disable-model-invocation, disallowed-tools, effort, input, model, shell, "
             "user-invocable, when_to_use."

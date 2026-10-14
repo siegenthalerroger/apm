@@ -414,7 +414,7 @@ Executable workflows with parameters. Use the `input:` key to declare
 parameters, and `${input:name}` to reference them in the prompt body.
 Deployed as slash commands to targets that support them:
 
-- Claude Code: `.claude/commands/*.md` (keeps Claude Code's command frontmatter such as `disable-model-invocation` and `when_to_use`; drops `name`, `paths` and unknown keys; frontmatter `hooks` are not deployed yet)
+- Claude Code: `.claude/commands/*.md` (keeps Claude Code's command frontmatter such as `disable-model-invocation` and `when_to_use`; drops `name`, `paths` and keys Claude Code ignores; frontmatter `hooks` are not deployed yet)
 - Cursor: `.cursor/commands/*.md` (Cursor 1.6+; Cursor is de-emphasizing commands in favor of rules/skills)
 - OpenCode: `.opencode/commands/*.md` (normalized to supported command frontmatter)
 - Gemini CLI: `.gemini/commands/*.toml` (converted to TOML command format)

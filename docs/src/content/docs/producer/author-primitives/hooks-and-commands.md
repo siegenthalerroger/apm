@@ -309,8 +309,10 @@ your-package/
         +-- review-pr.prompt.md   # also routes as a slash command
 ```
 
-Frontmatter the command integrator preserves on every target:
-`description`, `allowed-tools`, `model`, `argument-hint`, `input`.
+Frontmatter the command integrator preserves on every markdown
+command target: `description`, `allowed-tools`, `model`,
+`argument-hint`, `input` (Gemini's TOML commands keep only
+`description`).
 The `claude` target also keeps the fields Claude Code acts on in
 command files
 ([frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference)):

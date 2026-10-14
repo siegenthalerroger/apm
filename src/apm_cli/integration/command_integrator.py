@@ -396,11 +396,15 @@ class CommandIntegrator(BaseIntegrator):
             if target_name == "claude":
                 display_keys = display_keys | _CLAUDE_COMMAND_KEYS
             preserved_list = ", ".join(sorted(display_keys))
+            reason = f"not supported for {target_name} commands and were dropped"
+            if target_name == "claude":
+                # Claude Code accepts some dropped keys (metadata, license,
+                # compatibility) but ignores them; don't blame Claude.
+                reason = "dropped because Claude Code does not act on them in command files"
             diagnostics.warn(
                 message=(
                     f"{target_name.capitalize()} command {command_name}: "
-                    f"frontmatter keys not supported for {target_name} commands "
-                    f"and were dropped: {', '.join(dropped_keys)}. "
+                    f"frontmatter keys {reason}: {', '.join(dropped_keys)}. "
                     f"Supported keys: {preserved_list}."
                 ),
                 package=pkg_name,

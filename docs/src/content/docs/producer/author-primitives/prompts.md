@@ -133,8 +133,9 @@ the parameter bound and invokes the harness. See
   `mcp`, or `parameters` survive on Copilot (verbatim copy) but are
   stripped on Claude/Cursor/OpenCode/Gemini/Grok Build/Windsurf. APM logs a
   diagnostic at install time. Keep authoritative metadata to the
-  five preserved keys; Claude-native command fields such as
-  `disable-model-invocation` reach Claude only.
+  five preserved keys. Claude-native command fields such as
+  `disable-model-invocation` are also kept on Claude; the other
+  command targets strip them.
 - **Input names must match `[A-Za-z][\w-]{0,63}`.** Other entries
   are rejected with a warning at integrate time and never reach the
   command frontmatter.
