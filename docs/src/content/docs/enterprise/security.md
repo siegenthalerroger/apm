@@ -429,9 +429,11 @@ This prevents transitive inclusion of development-only packages (test fixtures, 
 Several IDE-style targets expose deployed files as **slash commands** --
 typing `/foo` in the IDE invokes the file's content as an LLM prompt
 with full tool access. Across all supported
-targets (Claude Code, Cursor, OpenCode, Gemini CLI, Grok Build, Windsurf), invocation
-requires the user to type the command name; commands are not
-auto-invoked at IDE startup or on disk-write.
+targets (Claude Code, Cursor, OpenCode, Gemini CLI, Grok Build, Windsurf), commands
+are not auto-invoked at IDE startup or on disk-write. On the other targets, invocation
+requires the user to type the command name; Claude Code also lets the model invoke
+a command on its own unless the command sets `disable-model-invocation: true`, which
+APM preserves.
 
 `apm install` deploys package `.prompt.md` files to each target's
 commands directory by default when that directory exists, so packaged
@@ -440,7 +442,7 @@ across targets.
 
 | Target | Commands directory | Notes |
 |--------|--------------------|-------|
-| **Claude Code** | `.claude/commands/*.md` | Deployed when `.claude/` exists. |
+| **Claude Code** | `.claude/commands/*.md` | Deployed when `.claude/` exists. Claude Code's command frontmatter is preserved, including `disable-model-invocation` and `allowed-tools`; frontmatter `hooks` are not deployed because the executable trust gate does not cover them yet ([#3227](https://github.com/microsoft/apm/issues/3227)). |
 | **Cursor** | `.cursor/commands/*.md` | Deployed when `.cursor/` exists. Cursor 1.6+ only; Cursor is de-emphasizing commands in favor of rules/skills -- monitor [Cursor release notes](https://cursor.com/changelog) for changes. The shared command transformer keeps the Claude-compatible frontmatter subset (`description`, `allowed-tools`, `model`, `argument-hint`, `input`); Cursor-specific keys (`author`, `mcp`, `parameters`, ...) are dropped with an install-time warning per file. |
 | **OpenCode** | `.opencode/commands/*.md` | Deployed when `.opencode/` exists. |
 | **Gemini CLI** | `.gemini/commands/*.toml` | Deployed when `.gemini/` exists. |

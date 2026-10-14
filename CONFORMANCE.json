@@ -1306,9 +1306,10 @@
       "keyword": "MUST",
       "section": "10.13",
       "status": "active",
-      "test_count": 1,
+      "test_count": 2,
       "tests": [
-        "tests/spec_conformance/test_manifest_reqs.py::test_consumer_must_deny_executable_primitive_without_allowexecutables_approval"
+        "tests/spec_conformance/test_manifest_reqs.py::test_consumer_must_deny_executable_primitive_without_allowexecutables_approval",
+        "tests/spec_conformance/test_manifest_reqs.py::test_unapproved_dependency_command_hooks_are_not_deployed"
       ]
     },
     {

@@ -309,10 +309,26 @@ your-package/
         +-- review-pr.prompt.md   # also routes as a slash command
 ```
 
-Frontmatter the command integrator preserves: `description`,
-`allowed-tools`, `model`, `argument-hint`, `input`. Other keys (for
-example `author`, `mcp`, `parameters`) are dropped during the
-transform and surfaced as install-time diagnostics.
+Frontmatter the command integrator preserves on every target:
+`description`, `allowed-tools`, `model`, `argument-hint`, `input`.
+The `claude` target also keeps the fields Claude Code acts on in
+command files
+([frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference)):
+`when_to_use`, `arguments`, `disable-model-invocation`,
+`user-invocable`, `disallowed-tools`, `effort`, `context`, `agent`,
+`background` and `shell`. When a prompt sets both `input` and
+`arguments`, the names generated from `input` win. Other keys (for
+example `author`, `mcp`, `parameters`, and on Claude `name`, `paths`
+or `metadata`) are dropped during the transform and surfaced as
+install-time diagnostics.
+
+Claude Code also supports `hooks` in command frontmatter, but APM
+does not deploy them yet: the
+[executable trust gate](../../../enterprise/security/#executable-trust-gate)
+does not cover them (tracked in
+[#3227](https://github.com/microsoft/apm/issues/3227)). APM warns and
+deploys the command without its hooks, so the command can behave
+differently from its source.
 
 ```markdown
 ---
@@ -364,9 +380,10 @@ agent a procedure" fits a skill -- and reaches every harness.
   [Cursor native hooks](#cursor-native-hooks-and-claude-import). Diagnostics
   name unsupported source-level, matcher-group and handler fields and identify
   whitespace in literal matcher alternatives without silently stripping it.
-- **Cursor command frontmatter loss.** Cursor reuses the Claude
-  command transformer today, so any prompt-only metadata is dropped
-  with a diagnostic. Keep Cursor commands to the preserved key set.
+- **Cursor command frontmatter loss.** Cursor reuses the shared
+  command transformer today and keeps only the common key set, so
+  Claude-native and prompt-only metadata is dropped with a
+  diagnostic. Keep Cursor commands to the common key set.
 - **Script paths.** Use `${PLUGIN_ROOT}` (or the harness-specific
   alias) for scripts that ship inside the package, using the quoting forms
   described above. Plain absolute paths break on consumers' machines.

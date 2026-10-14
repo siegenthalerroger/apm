@@ -39,10 +39,11 @@ logger = logging.getLogger(__name__)
 _INPUT_NAME_RE = re.compile(r"^[A-Za-z][\w-]{0,63}$")
 
 
-# Frontmatter keys preserved (or consumed) by the shared claude_command
-# transformer.  Any key in source frontmatter not in this set is dropped
-# during transformation and surfaced as a diagnostic warning so package
-# authors can act on it.  See command_integrator.integrate_command().
+# Frontmatter keys preserved (or consumed) by the shared command
+# transformer for every target.  Any key in source frontmatter outside
+# the target's preserved set is dropped during transformation and
+# surfaced as a diagnostic warning so package authors can act on it.
+# See command_integrator.integrate_command().
 _PRESERVED_COMMAND_KEYS = frozenset(
     {
         "description",
@@ -66,6 +67,27 @@ _PRESERVED_COMMAND_KEYS_DISPLAY = frozenset(
         "model",
         "argument-hint",
         "input",
+    }
+)
+
+# Additional keys the claude target copies verbatim.  Claude Code accepts
+# the skill frontmatter on .claude/commands/*.md except name and paths
+# (https://code.claude.com/docs/en/skills#frontmatter-reference).  Not
+# listed: metadata, license and compatibility, which Claude Code accepts
+# but does not act on; and hooks, which stays withheld until APM applies
+# executable approval to command hooks (microsoft/apm#3227).
+_CLAUDE_COMMAND_KEYS = frozenset(
+    {
+        "when_to_use",
+        "arguments",
+        "disable-model-invocation",
+        "user-invocable",
+        "disallowed-tools",
+        "effort",
+        "context",
+        "agent",
+        "background",
+        "shell",
     }
 )
 
@@ -196,17 +218,23 @@ class CommandIntegrator(BaseIntegrator):
     def _transform_prompt_to_command(
         self,
         source: Path,
-    ) -> tuple[str, frontmatter.Post, list[str], list[str]]:
+        *,
+        target_name: str = "claude",
+    ) -> tuple[str, frontmatter.Post, list[str], list[str], list[str]]:
         """Transform a .prompt.md file into Claude command format.
 
         Args:
             source: Path to the .prompt.md file
+            target_name: Deployment target.  ``"claude"`` additionally keeps
+                the Claude-native keys in ``_CLAUDE_COMMAND_KEYS``.
 
         Returns:
-            Tuple of (command_name, post, warnings, dropped_keys).
-            ``dropped_keys`` lists source frontmatter keys that the shared
-            command transformer does not preserve (e.g. ``author``,
-            ``mcp``, ``parameters`` for Cursor-specific frontmatter).
+            Tuple of (command_name, post, warnings, dropped_keys, input_names).
+            ``dropped_keys`` lists source frontmatter keys that the
+            transformer does not preserve for *target_name* (e.g.
+            ``author``, ``mcp``, ``parameters`` for Cursor-specific
+            frontmatter).  ``input_names`` lists the argument names mapped
+            from the APM ``input`` key.
         """
         warnings: list[str] = []
 
@@ -261,16 +289,39 @@ class CommandIntegrator(BaseIntegrator):
                 content,
             )
 
+        preserved_keys = _PRESERVED_COMMAND_KEYS
+        if target_name == "claude":
+            # input-generated arguments win so the rewritten $name
+            # placeholders stay declared; say so instead of silently
+            # discarding the authored list.
+            if input_names and "arguments" in post.metadata:
+                warnings.append(
+                    f"Claude command {command_name}: authored 'arguments' was "
+                    f"replaced by the names generated from 'input'."
+                )
+            for key in sorted(post.metadata.keys() & _CLAUDE_COMMAND_KEYS):
+                claude_metadata.setdefault(key, post.metadata[key])
+            # hooks gets its own warning: the generic dropped-key message
+            # would wrongly claim Claude Code does not support the field.
+            if "hooks" in post.metadata:
+                warnings.append(
+                    f"Claude command {command_name}: frontmatter 'hooks' was not "
+                    f"deployed. Claude Code supports command hooks, but APM does "
+                    f"not yet apply executable approval to them, so the deployed "
+                    f"command runs without them."
+                )
+            preserved_keys = _PRESERVED_COMMAND_KEYS | _CLAUDE_COMMAND_KEYS | {"hooks"}
+
         # Create new post with Claude metadata
         new_post = frontmatter.Post(content)
         new_post.metadata = claude_metadata
 
-        # Compute keys present in source frontmatter but not preserved by
-        # the shared command transformer.  Surfaced by integrate_command()
-        # via diagnostics so users see the lossy transform at install time.
-        dropped_keys = sorted(set(post.metadata.keys()) - _PRESERVED_COMMAND_KEYS)
+        # Compute keys present in source frontmatter but not preserved for
+        # this target.  Surfaced by integrate_command() via diagnostics so
+        # users see the lossy transform at install time.
+        dropped_keys = sorted(set(post.metadata.keys()) - preserved_keys)
 
-        return (command_name, new_post, warnings, dropped_keys)
+        return (command_name, new_post, warnings, dropped_keys, input_names)
 
     def integrate_command(
         self,
@@ -316,12 +367,14 @@ class CommandIntegrator(BaseIntegrator):
             finding causes the write to be skipped (defense-in-depth on
             top of the pre-install BLOCK gate).  ``had_dropped_keys`` is
             True when the source frontmatter carried at least one key
-            outside the cross-tool subset preserved by the shared
-            ``claude_command`` transformer; the dispatcher uses this to
-            decide whether to surface the one-shot passthrough notice.
+            outside the keys preserved for *target_name*; the dispatcher
+            uses this to decide whether to surface the one-shot
+            passthrough notice.
         """
         # Transform to command format
-        command_name, post, warnings, dropped_keys = self._transform_prompt_to_command(source)
+        command_name, post, warnings, dropped_keys, input_names = self._transform_prompt_to_command(
+            source, target_name=target_name
+        )
 
         # Resolve context links in content
         post.content, links_resolved = self.resolve_links(post.content, source, target)
@@ -332,13 +385,17 @@ class CommandIntegrator(BaseIntegrator):
             "",
         )
 
-        # Surface dropped (lossy-transform) frontmatter keys.  The shared
-        # claude_command transformer preserves only a common subset of
-        # frontmatter; any other source key is silently discarded by the
-        # transformer.  Warn so users see the lossy transform at install
-        # time -- core "install adds, never silently mutates" contract.
+        # Surface dropped (lossy-transform) frontmatter keys.  The command
+        # transformer preserves only the keys a target supports (a common
+        # subset, plus the Claude-native keys for claude); any other
+        # source key is discarded by the transformer.  Warn so users see
+        # the lossy transform at install time -- core "install adds,
+        # never silently mutates" contract.
         if dropped_keys and diagnostics is not None:
-            preserved_list = ", ".join(sorted(_PRESERVED_COMMAND_KEYS_DISPLAY))
+            display_keys = _PRESERVED_COMMAND_KEYS_DISPLAY
+            if target_name == "claude":
+                display_keys = display_keys | _CLAUDE_COMMAND_KEYS
+            preserved_list = ", ".join(sorted(display_keys))
             diagnostics.warn(
                 message=(
                     f"{target_name.capitalize()} command {command_name}: "
@@ -351,12 +408,13 @@ class CommandIntegrator(BaseIntegrator):
 
         # Surface install-time info when input -> arguments mapping happened so
         # users aren't surprised by content that differs from the source package.
-        mapped_args = post.metadata.get("arguments") if post.metadata else None
-        if mapped_args and diagnostics is not None:
+        # Keyed on input_names, not the output 'arguments': on claude an
+        # authored 'arguments' passes through untouched and is not a mapping.
+        if input_names and diagnostics is not None:
             diagnostics.info(
                 message=(
                     f"Mapped input -> command arguments in {target.name}: "
-                    f"[{', '.join(mapped_args)}]"
+                    f"[{', '.join(input_names)}]"
                 ),
                 package=pkg_name,
                 detail=(

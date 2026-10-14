@@ -1717,3 +1717,156 @@ class TestCursorCommandPanelFindings:
         assert any(i.severity == "critical" for i in sec_items), (
             f"expected critical security diagnostic, got: {[(i.severity, i.message) for i in sec_items]}"
         )
+
+
+def _deploy_command(tmp_path, target_name, metadata, body="Run it.\n", package_name="test-pkg"):
+    """Deploy one prompt to *target_name*; return (output frontmatter, diagnostics)."""
+    from apm_cli.integration.targets import KNOWN_TARGETS
+    from apm_cli.utils.diagnostics import DiagnosticCollector
+    from apm_cli.utils.yaml_io import yaml_to_str
+
+    target = KNOWN_TARGETS[target_name]
+    (tmp_path / target.root_dir).mkdir(parents=True, exist_ok=True)
+    pkg_info = _make_package(tmp_path, {"p.prompt.md": f"---\n{yaml_to_str(metadata)}---\n{body}"})
+    pkg_info.package.name = package_name
+    diag = DiagnosticCollector()
+    result = CommandIntegrator().integrate_commands_for_target(
+        target, pkg_info, tmp_path, diagnostics=diag
+    )
+    assert len(result.target_paths) == 1
+    return frontmatter.loads(result.target_paths[0].read_text(encoding="utf-8")).metadata, diag
+
+
+def _messages(diag, category):
+    return [item.message for item in diag.by_category().get(category, [])]
+
+
+class TestClaudeNativeCommandFrontmatter:
+    """Claude-native command frontmatter on the claude target (#3067, #3184)."""
+
+    def test_documented_claude_keys_reach_deployed_command(self, tmp_path):
+        source = {
+            "description": "Cancel a running job",
+            "argument-hint": "[job-id]",
+            "disable-model-invocation": True,
+            "allowed-tools": "Bash(node:*)",
+            "when_to_use": "When the user asks to stop a job",
+            "effort": "low",
+            "user-invocable": True,
+            "disallowed-tools": ["Write"],
+            "context": "fork",
+            "agent": "Explore",
+            "background": False,
+            "shell": "bash",
+            "arguments": ["job"],
+        }
+
+        deployed, diag = _deploy_command(tmp_path, "claude", source)
+
+        assert deployed == source
+        assert diag.by_category() == {}
+
+    @pytest.mark.parametrize(
+        ("key", "value"),
+        [
+            ("allowed-tools", "Bash(node:*)"),
+            ("disallowed-tools", ["Write", "Edit"]),
+            ("disable-model-invocation", True),
+            ("user-invocable", False),
+        ],
+    )
+    def test_invocation_and_tool_restrictions_survive(self, tmp_path, key, value):
+        deployed, diag = _deploy_command(tmp_path, "claude", {"description": "d", key: value})
+
+        assert deployed[key] == value
+        assert _messages(diag, "warning") == []
+
+    def test_unsupported_keys_still_dropped_with_claude_key_list(self, tmp_path):
+        deployed, diag = _deploy_command(
+            tmp_path,
+            "claude",
+            {
+                "description": "d",
+                "name": "other",
+                "paths": ["src/**"],
+                "metadata": {"team": "x"},
+                "author": "alice",
+            },
+        )
+
+        assert deployed == {"description": "d"}
+        assert _messages(diag, "warning") == [
+            "Claude command p: frontmatter keys not supported for claude commands and were "
+            "dropped: author, metadata, name, paths. Supported keys: agent, allowed-tools, "
+            "argument-hint, arguments, background, context, description, "
+            "disable-model-invocation, disallowed-tools, effort, input, model, shell, "
+            "user-invocable, when_to_use."
+        ]
+
+    @pytest.mark.parametrize("package_name", ["test-pkg", "_local"])
+    def test_hooks_withheld_with_dedicated_warning(self, tmp_path, package_name):
+        hooks = {
+            "PreToolUse": [
+                {"matcher": "Bash", "hooks": [{"type": "command", "command": "echo hi"}]}
+            ]
+        }
+
+        deployed, diag = _deploy_command(
+            tmp_path,
+            "claude",
+            {"description": "d", "disable-model-invocation": True, "hooks": hooks},
+            package_name=package_name,
+        )
+
+        assert deployed == {"description": "d", "disable-model-invocation": True}
+        assert _messages(diag, "warning") == [
+            "Claude command p: frontmatter 'hooks' was not deployed. Claude Code supports "
+            "command hooks, but APM does not yet apply executable approval to them, so the "
+            "deployed command runs without them."
+        ]
+
+    @pytest.mark.parametrize("target_name", ["cursor", "grok-build", "opencode", "windsurf"])
+    def test_other_targets_keep_shared_subset(self, tmp_path, target_name):
+        deployed, diag = _deploy_command(
+            tmp_path,
+            target_name,
+            {
+                "description": "d",
+                "disable-model-invocation": True,
+                "when_to_use": "x",
+                "effort": "low",
+                "hooks": {"Stop": []},
+            },
+        )
+
+        assert deployed == {"description": "d"}
+        assert _messages(diag, "warning") == [
+            f"{target_name.capitalize()} command p: frontmatter keys not supported for "
+            f"{target_name} commands and were dropped: disable-model-invocation, effort, "
+            f"hooks, when_to_use. Supported keys: allowed-tools, argument-hint, description, "
+            f"input, model."
+        ]
+
+    @pytest.mark.parametrize("arguments", ["issue branch", ["issue", "branch"], [1, 2]])
+    def test_authored_arguments_pass_through_without_input_mapping(self, tmp_path, arguments):
+        deployed, diag = _deploy_command(
+            tmp_path, "claude", {"description": "d", "arguments": arguments}
+        )
+
+        assert deployed["arguments"] == arguments
+        assert diag.by_category() == {}
+
+    def test_input_replaces_authored_arguments_with_warning(self, tmp_path):
+        deployed, diag = _deploy_command(
+            tmp_path,
+            "claude",
+            {"description": "d", "input": ["pr"], "arguments": ["other"]},
+            body="Review ${input:pr}.\n",
+        )
+
+        assert deployed["arguments"] == ["pr"]
+        assert _messages(diag, "warning") == [
+            "Claude command p: authored 'arguments' was replaced by the names generated "
+            "from 'input'."
+        ]
+        assert _messages(diag, "info") == ["Mapped input -> command arguments in p.md: [pr]"]

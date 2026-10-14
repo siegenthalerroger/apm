@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Claude commands keep the frontmatter Claude Code acts on in command files (such as `disable-model-invocation`, `user-invocable`, `when_to_use` and `effort`) instead of dropping it with a warning that wrongly blamed Claude; `name`, `paths` and unknown keys are still dropped, and frontmatter `hooks` is withheld with a warning until APM applies executable approval to it (#3227). (by @siegenthalerroger, closes #3067, #PR)
 - Codex agent conversion preserves native `model` and `model_reasoning_effort` settings and warns about dropped metadata instead of silently losing it. (#3150)
 - Cursor hooks use native v1 events and flat handlers; unsupported input and overlapping Claude imports now fail explicitly. Choose one hook route per dependency; see the [supported mappings](docs/src/content/docs/producer/author-primitives/hooks-and-commands.md#cursor-native-hooks-and-claude-import) and `openapm-v0.1.md` requirements `req-tg-016/017`. (#3149)
 

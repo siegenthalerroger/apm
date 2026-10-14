@@ -12,10 +12,12 @@ or (c) a real apm_cli loader call where the surface exists.
 from __future__ import annotations
 
 import shutil
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import frontmatter
 import jsonschema
 import pytest
 import tomllib
@@ -23,12 +25,14 @@ import tomllib
 from apm_cli.adapters.client.base import MCPClientAdapter
 from apm_cli.deps.plugin_parser import normalize_plugin_directory
 from apm_cli.install.phases.finalize import _hint_project_compile_needed
+from apm_cli.install.services import IntegratorBundle, integrate_package_primitives
 from apm_cli.install.target_filter import resolve_effective_package_targets
 from apm_cli.integration.agent_integrator import AgentIntegrator
+from apm_cli.integration.command_integrator import CommandIntegrator
 from apm_cli.integration.hook_integrator import HookIntegrator
 from apm_cli.integration.skill_integrator import SkillIntegrator
 from apm_cli.integration.targets import KNOWN_TARGETS
-from apm_cli.models.apm_package import APMPackage
+from apm_cli.models.apm_package import APMPackage, PackageInfo
 from apm_cli.utils.diagnostics import (
     CATEGORY_AGENT_LOSSY_COMPILATION,
     CATEGORY_WARNING,
@@ -581,6 +585,54 @@ def test_consumer_must_deny_executable_primitive_without_allowexecutables_approv
         "allowExecutables",
         "fail closed",
     )
+
+
+@pytest.mark.req("req-sc-009")
+def test_unapproved_dependency_command_hooks_are_not_deployed(tmp_path: Path) -> None:
+    """req-sc-009: command-frontmatter hooks from an unapproved dependency stay off disk.
+
+    The allowExecutables block is present (empty), so the dependency is not
+    approved for hooks. The Claude command is still deployed with its
+    non-executable native frontmatter, but its inline ``hooks`` are not.
+    """
+    package_root = tmp_path / "cmd-hooks"
+    prompt = package_root / ".apm" / "prompts" / "cancel.prompt.md"
+    prompt.parent.mkdir(parents=True)
+    hooks = {
+        "PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "echo hi"}]}]
+    }
+    metadata = {"description": "Cancel", "disable-model-invocation": True, "hooks": hooks}
+    prompt.write_text(f"---\n{yaml_to_str(metadata)}---\nCancel the job.\n", encoding="utf-8")
+    project = tmp_path / "project"
+    (project / ".claude").mkdir(parents=True)
+    claude = KNOWN_TARGETS["claude"]
+
+    integrate_package_primitives(
+        PackageInfo(
+            package=APMPackage(name="cmd-hooks", version="1.0.0"), install_path=package_root
+        ),
+        project,
+        targets=[replace(claude, primitives={"commands": claude.primitives["commands"]})],
+        integrators=IntegratorBundle(
+            prompt=None,
+            agent=None,
+            skill=SkillIntegrator(),
+            instruction=None,
+            command=CommandIntegrator(),
+            hook=None,
+        ),
+        force=False,
+        managed_files=None,
+        diagnostics=DiagnosticCollector(),
+        package_name="acme/cmd-hooks",
+        allow_executables={},
+    )
+
+    deployed = frontmatter.loads(
+        (project / ".claude" / "commands" / "cancel.md").read_text(encoding="utf-8")
+    ).metadata
+    assert "hooks" not in deployed
+    assert deployed["disable-model-invocation"] is True
 
 
 @pytest.mark.req("req-sc-010")

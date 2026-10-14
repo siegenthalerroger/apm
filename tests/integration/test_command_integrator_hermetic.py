@@ -222,7 +222,7 @@ class TestTransformPromptToCommand:
             "---\ndescription: Demo\n---\nRun it.\n",
         )
 
-        command_name, post, warnings, dropped = CommandIntegrator()._transform_prompt_to_command(
+        command_name, post, warnings, dropped, _ = CommandIntegrator()._transform_prompt_to_command(
             prompt
         )
 
@@ -237,7 +237,7 @@ class TestTransformPromptToCommand:
             "---\ndescription: Demo\n---\nRun it.\n",
         )
 
-        command_name, _, _, _ = CommandIntegrator()._transform_prompt_to_command(prompt)
+        command_name, _, _, _, _ = CommandIntegrator()._transform_prompt_to_command(prompt)
 
         assert command_name == "feature"
 
@@ -247,7 +247,7 @@ class TestTransformPromptToCommand:
             "---\ndescription: My command\nallowed-tools: [Bash]\nmodel: opus\ninput:\n  - feature_name\n  - feature_description\n---\nUse ${{input:feature_name}} then ${{input:feature_description}}.\n",
         )
 
-        _, post, warnings, dropped = CommandIntegrator()._transform_prompt_to_command(prompt)
+        _, post, warnings, dropped, _ = CommandIntegrator()._transform_prompt_to_command(prompt)
 
         assert post.metadata == {
             "description": "My command",
@@ -266,7 +266,7 @@ class TestTransformPromptToCommand:
             "---\ndescription: My command\nallowedTools: [Bash]\nargumentHint: feature\n---\nRun it.\n",
         )
 
-        _, post, _, _ = CommandIntegrator()._transform_prompt_to_command(prompt)
+        _, post, _, _, _ = CommandIntegrator()._transform_prompt_to_command(prompt)
 
         assert post.metadata["allowed-tools"] == ["Bash"]
         assert post.metadata["argument-hint"] == "feature"
@@ -277,7 +277,7 @@ class TestTransformPromptToCommand:
             "---\nargument-hint: custom\ninput:\n  - feature_name\n---\nUse ${{input:feature_name}}.\n",
         )
 
-        _, post, _, _ = CommandIntegrator()._transform_prompt_to_command(prompt)
+        _, post, _, _, _ = CommandIntegrator()._transform_prompt_to_command(prompt)
 
         assert post.metadata["arguments"] == ["feature_name"]
         assert post.metadata["argument-hint"] == "custom"
@@ -288,7 +288,7 @@ class TestTransformPromptToCommand:
             "---\ninput:\n  - feature_name\n  - bad:name\n  - 3\n---\nRun it.\n",
         )
 
-        _, post, warnings, _ = CommandIntegrator()._transform_prompt_to_command(prompt)
+        _, post, warnings, _, _ = CommandIntegrator()._transform_prompt_to_command(prompt)
 
         assert post.metadata["arguments"] == ["feature_name"]
         assert len(warnings) == 1
@@ -301,7 +301,7 @@ class TestTransformPromptToCommand:
             "---\nauthor: Sergio\ndescription: My command\nmcp: true\n---\nRun it.\n",
         )
 
-        _, _, _, dropped = CommandIntegrator()._transform_prompt_to_command(prompt)
+        _, _, _, dropped, _ = CommandIntegrator()._transform_prompt_to_command(prompt)
 
         assert dropped == ["author", "mcp"]
 
@@ -311,7 +311,7 @@ class TestTransformPromptToCommand:
             "---\ndescription: My command\n---\nUse ${{input:feature_name}} literally.\n",
         )
 
-        _, post, _, _ = CommandIntegrator()._transform_prompt_to_command(prompt)
+        _, post, _, _, _ = CommandIntegrator()._transform_prompt_to_command(prompt)
 
         assert post.content.strip() == "Use ${{input:feature_name}} literally."
 

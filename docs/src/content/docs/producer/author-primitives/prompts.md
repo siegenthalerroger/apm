@@ -34,9 +34,12 @@ what `apm init` scaffolds.
 
 ## Frontmatter
 
-Five keys are preserved by the cross-tool transform. Anything else
-is dropped at compile time and surfaced via diagnostics so consumers
-on lossy targets see a warning, not silent data loss.
+Five keys are preserved by the cross-tool transform. The `claude`
+target additionally keeps Claude Code's native command fields, such
+as `disable-model-invocation`; see
+[Hooks and commands](../hooks-and-commands/). Anything else is
+dropped at compile time and surfaced via diagnostics so consumers on
+lossy targets see a warning, not silent data loss.
 
 | Key | Type | Purpose |
 |---|---|---|
@@ -130,7 +133,8 @@ the parameter bound and invokes the harness. See
   `mcp`, or `parameters` survive on Copilot (verbatim copy) but are
   stripped on Claude/Cursor/OpenCode/Gemini/Grok Build/Windsurf. APM logs a
   diagnostic at install time. Keep authoritative metadata to the
-  five preserved keys.
+  five preserved keys; Claude-native command fields such as
+  `disable-model-invocation` reach Claude only.
 - **Input names must match `[A-Za-z][\w-]{0,63}`.** Other entries
   are rejected with a warning at integrate time and never reach the
   command frontmatter.
