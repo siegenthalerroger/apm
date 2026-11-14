@@ -1,0 +1,25 @@
+name: codex-demo
+version: 1.0.0
+description: Portable plugin fixture for the Codex CLI route
+author:
+  name: APM Fixture
+homepage: https://example.com/codex-demo
+license: MIT
+
+dependencies:
+  mcp:
+    - name: codex-demo-server
+      registry: false
+      transport: stdio
+      command: codex-demo-server
+      args: ["--stdio"]
+
+marketplace:
+  owner:
+    name: APM Fixture
+  outputs:
+    codex: {}
+  packages:
+    - name: codex-demo
+      source: ./build/codex-demo-1.0.0
+      category: Productivity
