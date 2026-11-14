@@ -1590,10 +1590,11 @@
       "keyword": "MUST",
       "section": "10.13",
       "status": "active",
-      "test_count": 2,
+      "test_count": 3,
       "tests": [
         "tests/spec_conformance/test_codex_compatibility_admission_reqs.py::test_codex_consumer_denies_unapproved_manifest_referenced_mcp",
-        "tests/spec_conformance/test_manifest_reqs.py::test_consumer_must_deny_executable_primitive_without_allowexecutables_approval"
+        "tests/spec_conformance/test_manifest_reqs.py::test_consumer_must_deny_executable_primitive_without_allowexecutables_approval",
+        "tests/spec_conformance/test_manifest_reqs.py::test_unapproved_dependency_command_hooks_are_not_deployed"
       ]
     },
     {
