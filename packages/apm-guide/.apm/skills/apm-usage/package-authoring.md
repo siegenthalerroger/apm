@@ -1076,7 +1076,12 @@ per-format `path:`) can also select:
 
 - `codex` -> `.agents/plugins/marketplace.json` (default path). Every
   package needs a `category`. Sources compile to the object shape
-  `{source, url/path, ref?, sha?}`.
+  `{source, url/path, ref?, sha?}`. To ship a plugin Codex CLI can
+  install, pack with `apm pack --format agent-plugin` and set the
+  package `source` to `./build/<name>-<version>`; the default
+  `--format plugin` bundle loads skills only (no version, no
+  `dependencies.mcp` servers). Measured on Codex CLI 0.163.0 and
+  0.169.0, CLI surface, skills and MCP only.
 - `copilot` -> `.github/plugin/marketplace.json`. No `category`
   requirement. Local `plugins[].source` strings preserve real paths,
   e.g. `"./plugins/demo"`. Remote sources use GitHub

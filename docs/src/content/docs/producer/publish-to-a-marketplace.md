@@ -303,6 +303,71 @@ mapping (`dependencies: {}`). Marketplace projects with an omitted or null
 `dependencies:` value produce only `marketplace.json`. See
 [Pack a bundle](../pack-a-bundle/) for the bundle side.
 
+## Ship a packed plugin to Codex CLI
+
+One `apm pack` run can write both a plugin bundle and the Codex catalog
+that points at it. The bundle must be the portable
+[Agent Plugin bundle](../../reference/cli/pack/#agent-plugin-bundle---format-agent-plugin),
+which is an explicit opt-in:
+
+```yaml
+# apm.yml
+name: codex-demo
+version: 1.0.0
+description: Portable plugin for Codex CLI
+
+dependencies:
+  mcp:
+    - name: codex-demo-server
+      registry: false
+      transport: stdio
+      command: codex-demo-server
+
+marketplace:
+  owner:
+    name: Example
+  outputs:
+    codex: {}
+  packages:
+    - name: codex-demo
+      source: ./build/codex-demo-1.0.0
+      category: Productivity
+```
+
+```bash
+apm install --target codex        # records MCP servers in apm.lock.yaml
+apm pack --format agent-plugin    # build/codex-demo-1.0.0/ + .agents/plugins/marketplace.json
+```
+
+APM copies `packages[].name` and `source` into the catalog as written;
+it does not derive them from the bundle. Keep `name` equal to the
+top-level `name`, and `source` equal to `./build/<name>-<version>`
+(the default bundle directory). Changing `version` or passing
+`--output` without updating `source` leaves the catalog pointing at a
+directory that does not hold the bundle.
+
+A consumer then uses Codex's own commands:
+
+```bash
+codex plugin marketplace add <path-to-repo>
+codex plugin add codex-demo@codex-demo
+```
+
+| Bundle | Codex shows version | Skills load | MCP servers from `dependencies.mcp` |
+|---|---|---|---|
+| `--format agent-plugin` | Yes (`1.0.0`) | Yes | Yes |
+| `--format plugin` (default) | No (`local`) | Yes | No |
+
+:::note[Verified scope]
+Measured on Codex CLI 0.163.0 and 0.169.0 on Linux x86_64, signed out,
+with a local marketplace: discovery, installation, skill availability,
+and MCP server configuration. Only the CLI surface, skills, and MCP
+servers are covered. Hooks are not: `apm pack --format agent-plugin`
+fails before writing anything when the project has them. The Codex
+desktop app and hosted Codex are not verified. Enabling a plugin,
+trusting its MCP servers, and authenticating stay with Codex.
+:::
+
 ## Validate before you ship
 
 ```bash

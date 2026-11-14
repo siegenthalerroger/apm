@@ -31,7 +31,10 @@ or when the runtime owns the install surface (VS Code Copilot Chat).
 Native commands above read whichever artifact the runtime expects.
 Most read `.claude-plugin/marketplace.json` (Anthropic-compatible
 schema); Codex reads `.agents/plugins/marketplace.json`. Producers
-who enable both outputs reach every runtime from one repo.
+who enable both outputs reach every runtime from one repo. For the
+bundle format Codex CLI loads through that catalog, and the versions it
+was measured on, see
+[Ship a packed plugin to Codex CLI](../../producer/publish-to-a-marketplace/#ship-a-packed-plugin-to-codex-cli).
 
 ## Local authoring previews through APM
 

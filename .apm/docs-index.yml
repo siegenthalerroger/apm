@@ -195,7 +195,7 @@ pages:
     promise: 2
     documents_symbols:
       cli: [apm marketplace init, apm marketplace check, apm marketplace doctor, apm marketplace outdated, apm marketplace publish, apm marketplace migrate, apm marketplace package add, apm marketplace package set, apm marketplace package remove, apm pack]
-      flags: [--marketplace, --offline, --include-prerelease, --dry-run, --yes, --no-pr]
+      flags: [--marketplace, --offline, --include-prerelease, --dry-run, --yes, --no-pr, --format]
       schemas: [apm.yml.marketplace, marketplace.json]
 
   - path: docs/src/content/docs/producer/releasing-from-any-ci.md
