@@ -520,9 +520,6 @@ def test_git_pinned_install_and_missing_apm_cache_restore(
         },
         apm_home / "apm.yml",
     )
-    _native_write(
-        codex, env, tmp_path, {"mcp_servers.loose": {"command": "DO_NOT_EXECUTE", "enabled": False}}
-    )
     runner = ApmLifecycleRunner((str(apm_binary_path),))
     result = _apm(
         runner,
@@ -542,12 +539,11 @@ def test_git_pinned_install_and_missing_apm_cache_restore(
     assert compute_package_hash(Path(record["installed_root"])) == compute_package_hash(source)
     materialized = reference.get_install_path(apm_home / "apm_modules")
     assert (materialized / "apm.yml").read_text() == publisher_metadata
-    assert (
-        tomlkit.parse((Path(env["CODEX_HOME"]) / "config.toml").read_text()).unwrap()[
-            "mcp_servers"
-        ]["loose"]["enabled"]
-        is False
-    )
+    # APM writes and owns the loose connection: a differing pre-existing entry is a
+    # conflict and an identical foreign one is never owned, so --frozen could not replay it.
+    assert tomlkit.parse((Path(env["CODEX_HOME"]) / "config.toml").read_text()).unwrap()[
+        "mcp_servers"
+    ]["loose"] == {"command": "DO_NOT_EXECUTE", "args": [], "env": {}}
     _audit_cache(runner, tmp_path, env, materialized)
     config_path = Path(env["CODEX_HOME"]) / "config.toml"
     config_before = config_path.read_bytes()

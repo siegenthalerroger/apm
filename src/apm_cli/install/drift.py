@@ -717,10 +717,12 @@ def run_replay(config: ReplayConfig, logger: CheckLogger) -> Path:
                     except AgentPluginTargetExcludedError:
                         continue
                     if result.get("native_plugin"):
+                        # A local unit's replay image is install_path itself. The
+                        # deployment root is elsewhere at user scope and holds no image.
                         verify_native_plugin_cache(
                             lock_dep,
                             install_path,
-                            package_info.deployment_package_root,
+                            install_path,
                             live_modules_dir,
                             scratch_root,
                         )

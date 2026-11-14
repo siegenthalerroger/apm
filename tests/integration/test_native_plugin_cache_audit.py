@@ -139,3 +139,67 @@ def test_native_cache_tamper_fails_installed_audit(
     assert skill.read_bytes() == original
     clean = audit()
     assert clean.returncode == 0, clean.stdout + clean.stderr
+
+
+def test_user_scope_local_native_cache_audit(tmp_path: Path) -> None:
+    """At user scope the replay image is not under the deployment root."""
+    source, home, scratch = (tmp_path / name for name in ("source", "home", "scratch"))
+    apm_home = home / ".apm"
+    for root in (apm_home, scratch):
+        root.mkdir(parents=True)
+    name = "user-cache-witness"
+    write_agent_plugin(source, name=name, with_mcp=False)
+    executable = Path(sysconfig.get_path("scripts")) / ("apm.exe" if os.name == "nt" else "apm")
+    assert executable.is_file(), "The test requires the installed project CLI"
+    isolated = IsolatedApmEnvironment.create(tmp_path / "isolated", base_env=dict(os.environ))
+    env = {
+        **isolated.subprocess_env(),
+        "HOME": str(home),
+        "USERPROFILE": str(home),
+        "APM_HOME": str(apm_home),
+        "COPILOT_HOME": str(home / ".copilot"),
+        "XDG_CACHE_HOME": str(home / ".cache"),
+        "TMPDIR": str(scratch),
+        "TMP": str(scratch),
+        "TEMP": str(scratch),
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }
+    (apm_home / "apm.yml").write_text(
+        json.dumps(
+            {
+                "name": "consumer",
+                "version": "1.0.0",
+                "targets": ["copilot"],
+                "dependencies": {"apm": [str(source)]},
+            }
+        ),
+        encoding="ascii",
+    )
+
+    def run(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [str(executable), *args],
+            cwd=apm_home,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+
+    installed = run("install", "-g", "--no-policy", "--target", "copilot")
+    assert installed.returncode == 0, installed.stdout + installed.stderr
+    clean = run("audit", "--no-policy", "--ci")
+    assert clean.returncode == 0, clean.stdout + clean.stderr
+
+    relative = Path("skills") / f"{name}-skill" / "SKILL.md"
+    (skill,) = (apm_home / "apm_modules").rglob(relative.as_posix())
+    original = skill.read_bytes()
+    assert original == (source / relative).read_bytes()
+    skill.write_bytes(original + b"\nModified only in native cache.\n")
+    changed = run("audit", "--no-policy", "--ci")
+    assert changed.returncode != 0, changed.stdout + changed.stderr
+    assert "cache differs from its replay baseline" in " ".join(changed.stdout.split())
+    skill.write_bytes(original)
+    restored = run("audit", "--no-policy", "--ci")
+    assert restored.returncode == 0, restored.stdout + restored.stderr
